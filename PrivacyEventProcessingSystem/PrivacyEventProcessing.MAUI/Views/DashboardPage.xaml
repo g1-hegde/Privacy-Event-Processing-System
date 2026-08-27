@@ -1,0 +1,374 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:vm="clr-namespace:PrivacyEventProcessing.MAUI.ViewModels"
+             xmlns:conv="clr-namespace:PrivacyEventProcessing.MAUI.Converters"
+             xmlns:models="clr-namespace:PrivacyEventProcessing.Domain.Models;assembly=PrivacyEventProcessing.Domain"
+             x:Class="PrivacyEventProcessing.MAUI.Views.DashboardPage"
+             x:DataType="vm:MainDashboardViewModel"
+             Title="Dashboard">
+
+    <ContentPage.Resources>
+        <Style x:Key="Card" TargetType="Border">
+            <Setter Property="Stroke" Value="{AppThemeBinding Light=#D9D9D9, Dark=#3A3A3A}" />
+            <Setter Property="StrokeThickness" Value="1" />
+            <Setter Property="StrokeShape" Value="RoundRectangle 8" />
+            <Setter Property="Padding" Value="14,10" />
+        </Style>
+
+        <Style x:Key="Tile" TargetType="Border" BasedOn="{StaticResource Card}">
+            <Setter Property="Margin" Value="0,0,8,8" />
+            <Setter Property="Padding" Value="{OnIdiom Phone='10,6', Default='14,10'}" />
+            <Setter Property="MinimumWidthRequest" Value="{OnIdiom Phone=104, Default=150}" />
+            <Setter Property="FlexLayout.Grow" Value="1" />
+            <Setter Property="FlexLayout.Basis" Value="{OnIdiom Phone=104, Default=150}" />
+        </Style>
+
+        <Style x:Key="TileCaption" TargetType="Label">
+            <Setter Property="FontSize" Value="{OnIdiom Phone=11, Default=12}" />
+            <Setter Property="TextColor" Value="{AppThemeBinding Light=#666666, Dark=#AAAAAA}" />
+        </Style>
+
+        <Style x:Key="TileValue" TargetType="Label">
+            <Setter Property="FontSize" Value="{OnIdiom Phone=19, Default=26}" />
+            <Setter Property="FontAttributes" Value="Bold" />
+        </Style>
+
+        <Style x:Key="SectionHeading" TargetType="Label">
+            <Setter Property="FontAttributes" Value="Bold" />
+            <Setter Property="Margin" Value="0,0,0,6" />
+        </Style>
+    </ContentPage.Resources>
+
+    <Grid>
+      <!-- No outer ScrollView: a CollectionView nested in one measures unbounded instead of
+           virtualising, and the wheel gesture goes to the outer scroller. The list row is
+           star sized so the CollectionView gets a definite height and owns its scrolling.
+           Trade-off is that the header no longer scrolls away on a very short window. -->
+      <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto,*"
+            Padding="{OnIdiom Phone='12', Default='16'}"
+            RowSpacing="{OnIdiom Phone=8, Default=12}">
+
+        <!-- Controls -->
+        <FlexLayout Grid.Row="0" Wrap="Wrap" AlignItems="Start" Direction="Row">
+
+            <Border Style="{StaticResource Card}" Margin="0,0,10,10">
+                <VerticalStackLayout Spacing="8">
+                    <Label Text="Worker pool" Style="{StaticResource SectionHeading}" Margin="0" />
+
+                    <Grid ColumnDefinitions="Auto,Auto"
+                          RowDefinitions="Auto,Auto"
+                          ColumnSpacing="10"
+                          RowSpacing="6">
+
+                        <Switch Grid.Row="0" Grid.Column="0"
+                                IsToggled="{Binding IsProcessorRunning, Mode=OneWay}"
+                                Toggled="OnWorkersToggled"
+                                HorizontalOptions="Start"
+                                VerticalOptions="Center" />
+                        <Label Grid.Row="0" Grid.Column="1"
+                               Text="{Binding ProcessorStateText}"
+                               FontSize="13"
+                               VerticalOptions="Center" />
+
+                        <!-- Disabled while running - the pool only reads the count at start -->
+                        <Stepper Grid.Row="1" Grid.Column="0"
+                                 Minimum="{Binding WorkerCountMinimum}"
+                                 Maximum="{Binding WorkerCountMaximum}"
+                                 Increment="1"
+                                 Value="{Binding WorkerCount}"
+                                 IsEnabled="{Binding IsProcessorRunning, Converter={x:Static conv:InverseBoolConverter.Instance}}"
+                                 HorizontalOptions="Start"
+                                 VerticalOptions="Center" />
+                        <Label Grid.Row="1" Grid.Column="1"
+                               Text="{Binding WorkerCount, StringFormat='{0} workers'}"
+                               FontSize="13"
+                               VerticalOptions="Center" />
+                    </Grid>
+                </VerticalStackLayout>
+            </Border>
+
+            <Border Style="{StaticResource Card}" Margin="0,0,10,10">
+                <!-- Fixed grid, not a wrapping layout: the card gets unbounded width inside
+                     the FlexLayout, so a wrapping row never wraps and the last button clips -->
+                <Grid ColumnDefinitions="Auto,Auto"
+                      RowDefinitions="Auto,Auto,Auto"
+                      ColumnSpacing="8"
+                      RowSpacing="6">
+                    <Button Grid.Row="0" Grid.Column="0"
+                            Text="Simulate Load"
+                            Command="{Binding SimulateLoadCommand}" />
+                    <Button Grid.Row="0" Grid.Column="1"
+                            Text="Simulate Slow Load"
+                            Command="{Binding SimulateSlowLoadCommand}" />
+                    <Button Grid.Row="1" Grid.Column="0"
+                            Text="Cancel"
+                            Command="{Binding CancelLoadRunCommand}" />
+                    <Button Grid.Row="1" Grid.Column="1"
+                            Text="Clear"
+                            Command="{Binding ClearCommand}" />
+
+                    <!-- Says why the simulate buttons are disabled, rather than leaving the
+                         user with two dead buttons and no explanation -->
+                    <Label Grid.Row="2" Grid.ColumnSpan="2"
+                           Text="{Binding QueueLength, StringFormat='{0:N0} events still queued. Drain or clear them to run another simulation.'}"
+                           IsVisible="{Binding HasQueueBacklog}"
+                           FontSize="11"
+                           Margin="0,4,0,0"
+                           MaximumWidthRequest="260" />
+                </Grid>
+            </Border>
+        </FlexLayout>
+
+        <!-- Load run progress -->
+        <VerticalStackLayout Grid.Row="1" Spacing="4" IsVisible="{Binding ShowLoadProgress}">
+            <ProgressBar Progress="{Binding LoadProgress}" HeightRequest="6" />
+            <Label Text="{Binding LoadProgressText}" FontSize="12" />
+        </VerticalStackLayout>
+
+        <!-- Metrics. Tiles wrap and grow so the row reflows as the window resizes. -->
+        <FlexLayout Grid.Row="2" Wrap="Wrap" Direction="Row" AlignItems="Stretch">
+            <Border Style="{StaticResource Tile}">
+                <VerticalStackLayout>
+                    <Label Text="Queue length" Style="{StaticResource TileCaption}" />
+                    <Label Text="{Binding QueueLength, StringFormat='{0:N0}'}" Style="{StaticResource TileValue}" />
+                </VerticalStackLayout>
+            </Border>
+            <Border Style="{StaticResource Tile}">
+                <VerticalStackLayout>
+                    <Label Text="Processed" Style="{StaticResource TileCaption}" />
+                    <Label Text="{Binding ProcessedCount, StringFormat='{0:N0}'}" Style="{StaticResource TileValue}" />
+                </VerticalStackLayout>
+            </Border>
+            <Border Style="{StaticResource Tile}">
+                <VerticalStackLayout>
+                    <Label Text="Failed" Style="{StaticResource TileCaption}" />
+                    <Label Text="{Binding FailedCount, StringFormat='{0:N0}'}" Style="{StaticResource TileValue}" />
+                </VerticalStackLayout>
+            </Border>
+            <Border Style="{StaticResource Tile}">
+                <VerticalStackLayout>
+                    <Label Text="Avg time" Style="{StaticResource TileCaption}" />
+                    <Label Text="{Binding AverageProcessingTimeMs, StringFormat='{0:F3} ms'}" Style="{StaticResource TileValue}" />
+                </VerticalStackLayout>
+            </Border>
+            <Border Style="{StaticResource Tile}">
+                <VerticalStackLayout>
+                    <Label Text="Events / sec" Style="{StaticResource TileCaption}" />
+                    <Label Text="{Binding EventsPerSecond, StringFormat='{0:N0}'}" Style="{StaticResource TileValue}" />
+                </VerticalStackLayout>
+            </Border>
+            <Border Style="{StaticResource Tile}">
+                <VerticalStackLayout>
+                    <Label Text="Cached" Style="{StaticResource TileCaption}" />
+                    <Label Text="{Binding CachedEventCount, StringFormat='{0:N0}'}" Style="{StaticResource TileValue}" />
+                </VerticalStackLayout>
+            </Border>
+        </FlexLayout>
+
+        <!-- Status -->
+        <Label Grid.Row="3" Text="{Binding StatusMessage}" FontAttributes="Italic" FontSize="13" />
+
+        <!-- Narrow only: picks which list is on screen. The selected side is disabled. -->
+        <Grid Grid.Row="4" ColumnDefinitions="*,*" ColumnSpacing="8" IsVisible="{Binding IsNarrowLayout}">
+            <Button Grid.Column="0"
+                    Text="Events"
+                    Command="{Binding ShowEventsCommand}"
+                    IsEnabled="{Binding ShowFailureList}" />
+            <Button Grid.Column="1"
+                    Text="Failures"
+                    Command="{Binding ShowFailuresCommand}"
+                    IsEnabled="{Binding ShowFailureList, Converter={x:Static conv:InverseBoolConverter.Instance}}" />
+        </Grid>
+
+        <!-- Event list, with recent failures beside it when there is room. Fills the star row
+             so both CollectionViews get a definite height from the layout. -->
+        <Grid Grid.Row="5"
+              ColumnDefinitions="3*,2*"
+              ColumnSpacing="12"
+              MinimumHeightRequest="180">
+
+            <Border x:Name="EventsPanel"
+                    Grid.Column="0"
+                    IsVisible="{Binding IsEventListVisible}"
+                    Style="{StaticResource Card}">
+                <Grid RowDefinitions="Auto,*">
+
+                    <Grid Grid.Row="0" ColumnDefinitions="*,Auto" ColumnSpacing="6" Margin="0,0,0,6">
+                        <Label Grid.Column="0"
+                               Text="{Binding ProcessedEventsCaption}"
+                               FontAttributes="Bold"
+                               VerticalOptions="Center"
+                               LineBreakMode="TailTruncation" />
+
+                        <!-- Only shown once the user has paged back -->
+                        <Button Grid.Column="1"
+                                Text="Latest"
+                                Command="{Binding ShowLatestEventsCommand}"
+                                IsVisible="{Binding IsShowingLatest, Converter={x:Static conv:InverseBoolConverter.Instance}}"
+                                FontSize="12"
+                                Padding="12,2"
+                                HeightRequest="30"
+                                MinimumWidthRequest="0" />
+                    </Grid>
+
+                    <!-- 200 row window, extended a page at a time on scroll. Binding rows
+                         costs UI thread time per row; all ~10,000 at once measured 1,667ms. -->
+                    <CollectionView Grid.Row="1"
+                                    ItemsSource="{Binding ProcessedEvents}"
+                                    SelectedItem="{Binding SelectedEvent}"
+                                    SelectionMode="Single"
+                                    RemainingItemsThreshold="20"
+                                    RemainingItemsThresholdReachedCommand="{Binding LoadMoreEventsCommand}">
+                        <CollectionView.EmptyView>
+                            <Label Text="No events processed yet. Start the workers and generate some."
+                                   FontSize="13" />
+                        </CollectionView.EmptyView>
+                        <CollectionView.ItemTemplate>
+                            <DataTemplate x:DataType="models:ProcessedEvent">
+                                <Grid ColumnDefinitions="*,Auto" Padding="4,6" MinimumHeightRequest="44">
+                                    <VerticalStackLayout Grid.Column="0">
+                                        <Label Text="{Binding EventType}" FontAttributes="Bold" FontSize="13" />
+                                        <Label Text="{Binding MaskedEmail}" FontSize="12" LineBreakMode="TailTruncation" />
+                                        <Label Text="{Binding MaskedIpAddress}" FontSize="12" LineBreakMode="TailTruncation" />
+                                    </VerticalStackLayout>
+                                    <Label Grid.Column="1"
+                                           Text="{Binding ProcessedAt, StringFormat='{0:HH:mm:ss}'}"
+                                           FontSize="11"
+                                           VerticalOptions="Start" />
+                                </Grid>
+                            </DataTemplate>
+                        </CollectionView.ItemTemplate>
+                    </CollectionView>
+                </Grid>
+
+                <VisualStateManager.VisualStateGroups>
+                    <VisualStateGroupList>
+                        <VisualStateGroup x:Name="LayoutStates">
+                            <VisualState x:Name="Wide">
+                                <VisualState.StateTriggers>
+                                    <AdaptiveTrigger MinWindowWidth="900" />
+                                </VisualState.StateTriggers>
+                                <VisualState.Setters>
+                                    <Setter Property="Grid.ColumnSpan" Value="1" />
+                                </VisualState.Setters>
+                            </VisualState>
+                            <VisualState x:Name="Narrow">
+                                <VisualState.StateTriggers>
+                                    <AdaptiveTrigger MinWindowWidth="0" />
+                                </VisualState.StateTriggers>
+                                <VisualState.Setters>
+                                    <Setter Property="Grid.ColumnSpan" Value="2" />
+                                </VisualState.Setters>
+                            </VisualState>
+                        </VisualStateGroup>
+                    </VisualStateGroupList>
+                </VisualStateManager.VisualStateGroups>
+            </Border>
+
+            <!-- Moves under the event list and shares its space when narrow -->
+            <Border x:Name="SidePanel"
+                    Grid.Column="1"
+                    IsVisible="{Binding IsFailureListVisible}"
+                    Style="{StaticResource Card}">
+                <Grid RowDefinitions="Auto,Auto,*">
+                    <Label Grid.Row="0" Text="Recent failures" Style="{StaticResource SectionHeading}" />
+
+                    <HorizontalStackLayout Grid.Row="1" Spacing="10" Margin="0,0,0,8">
+                        <Label FontSize="12" Text="{Binding InvalidInputCount, StringFormat='Invalid: {0:N0}'}" />
+                        <Label FontSize="12" Text="{Binding ProcessingErrorCount, StringFormat='Processing: {0:N0}'}" />
+                        <Label FontSize="12" Text="{Binding UnknownErrorCount, StringFormat='Unknown: {0:N0}'}" />
+                    </HorizontalStackLayout>
+
+                    <CollectionView Grid.Row="2" ItemsSource="{Binding RecentFailures}">
+                        <CollectionView.EmptyView>
+                            <Label Text="No failures recorded yet." FontSize="12" />
+                        </CollectionView.EmptyView>
+                        <CollectionView.ItemTemplate>
+                            <DataTemplate x:DataType="models:FailureRecord">
+                                <Grid ColumnDefinitions="Auto,*" Padding="2,6" ColumnSpacing="8">
+                                    <Label Grid.Column="0" Text="{Binding Reason}" FontSize="11" FontAttributes="Bold" />
+                                    <Label Grid.Column="1" Text="{Binding Message}" FontSize="11" LineBreakMode="TailTruncation" />
+                                </Grid>
+                            </DataTemplate>
+                        </CollectionView.ItemTemplate>
+                    </CollectionView>
+                </Grid>
+
+                <VisualStateManager.VisualStateGroups>
+                    <VisualStateGroupList>
+                        <VisualStateGroup x:Name="LayoutStates">
+                            <VisualState x:Name="Wide">
+                                <VisualState.StateTriggers>
+                                    <AdaptiveTrigger MinWindowWidth="900" />
+                                </VisualState.StateTriggers>
+                                <VisualState.Setters>
+                                    <Setter Property="Grid.Column" Value="1" />
+                                    <Setter Property="Grid.ColumnSpan" Value="1" />
+                                </VisualState.Setters>
+                            </VisualState>
+                            <VisualState x:Name="Narrow">
+                                <VisualState.StateTriggers>
+                                    <AdaptiveTrigger MinWindowWidth="0" />
+                                </VisualState.StateTriggers>
+                                <VisualState.Setters>
+                                    <Setter Property="Grid.Column" Value="0" />
+                                    <Setter Property="Grid.ColumnSpan" Value="2" />
+                                </VisualState.Setters>
+                            </VisualState>
+                        </VisualStateGroup>
+                    </VisualStateGroupList>
+                </VisualStateManager.VisualStateGroups>
+            </Border>
+        </Grid>
+      </Grid>
+
+      <!-- Event detail popup. Bound to DetailEvent rather than the selection, so a list
+           refresh cannot close it. -->
+
+      <Grid BackgroundColor="#99000000"
+            IsVisible="{Binding DetailEvent, Converter={x:Static conv:IsNotNullConverter.Instance}}">
+
+          <Border Style="{StaticResource Card}"
+                  BackgroundColor="{AppThemeBinding Light=White, Dark=#1E1E1E}"
+                  Padding="18"
+                  Margin="20"
+                  MaximumWidthRequest="440"
+                  HorizontalOptions="Center"
+                  VerticalOptions="Center">
+
+              <ScrollView>
+                  <VerticalStackLayout Spacing="2">
+                      <Label Text="Stored event" FontSize="17" FontAttributes="Bold" />
+                      <Label Text="Only protected values are kept. The original user id, email and IP address are never stored."
+                             FontSize="11"
+                             Margin="0,4,0,10" />
+
+                      <Label Text="Hashed user id" Style="{StaticResource TileCaption}" />
+                      <Label Text="{Binding DetailEvent.HashedUserId}" FontSize="12" LineBreakMode="CharacterWrap" />
+
+                      <Label Text="Masked email" Style="{StaticResource TileCaption}" Margin="0,8,0,0" />
+                      <Label Text="{Binding DetailEvent.MaskedEmail}" FontSize="12" />
+
+                      <Label Text="Masked IP address" Style="{StaticResource TileCaption}" Margin="0,8,0,0" />
+                      <Label Text="{Binding DetailEvent.MaskedIpAddress}" FontSize="12" />
+
+                      <Label Text="Event type" Style="{StaticResource TileCaption}" Margin="0,8,0,0" />
+                      <Label Text="{Binding DetailEvent.EventType}" FontSize="12" />
+
+                      <Label Text="Occurred at (UTC)" Style="{StaticResource TileCaption}" Margin="0,8,0,0" />
+                      <Label Text="{Binding DetailEvent.OccurredAt, StringFormat='{0:yyyy-MM-dd HH:mm:ss}'}" FontSize="12" />
+
+                      <Label Text="Processed at (UTC)" Style="{StaticResource TileCaption}" Margin="0,8,0,0" />
+                      <Label Text="{Binding DetailEvent.ProcessedAt, StringFormat='{0:yyyy-MM-dd HH:mm:ss}'}" FontSize="12" />
+
+                      <Button Text="Close"
+                              Command="{Binding CloseEventDetailCommand}"
+                              Margin="0,16,0,0"
+                              HorizontalOptions="End" />
+                  </VerticalStackLayout>
+              </ScrollView>
+          </Border>
+      </Grid>
+    </Grid>
+</ContentPage>

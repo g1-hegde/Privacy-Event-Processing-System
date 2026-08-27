@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:vm="clr-namespace:PrivacyEventProcessing.MAUI.ViewModels"
+             xmlns:conv="clr-namespace:PrivacyEventProcessing.MAUI.Converters"
+             xmlns:behaviors="clr-namespace:PrivacyEventProcessing.MAUI.Behaviors"
+             x:Class="PrivacyEventProcessing.MAUI.Views.EventEntryPage"
+             x:DataType="vm:EventEntryViewModel"
+             Title="Add Event">
+
+    <ContentPage.Resources>
+        <Style x:Key="FieldLabel" TargetType="Label">
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="Margin" Value="0,8,0,2" />
+        </Style>
+
+        <Style x:Key="FieldError" TargetType="Label">
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="TextColor" Value="#C62828" />
+            <Setter Property="Margin" Value="0,2,0,0" />
+        </Style>
+    </ContentPage.Resources>
+
+    <ScrollView>
+        <VerticalStackLayout Padding="16" Spacing="0" MaximumWidthRequest="520" HorizontalOptions="Start">
+
+            <Label Text="Add an event"
+                   FontSize="20"
+                   FontAttributes="Bold" />
+
+            <Label Text="Values are protected by the pipeline before anything is stored or shown."
+                   FontSize="12"
+                   Margin="0,4,0,0" />
+
+            <Border Stroke="#E0A800"
+                    StrokeThickness="1"
+                    StrokeShape="RoundRectangle 6"
+                    Padding="10,8"
+                    Margin="0,12,0,0"
+                    IsVisible="{Binding IsProcessorRunning, Converter={x:Static conv:InverseBoolConverter.Instance}}">
+                <Label Text="Workers are stopped. Submitted events will wait in the queue until you start processing on the dashboard."
+                       FontSize="12" />
+            </Border>
+
+            <Label Text="User ID" Style="{StaticResource FieldLabel}" />
+            <Entry Text="{Binding UserId}" Placeholder="U12345">
+                <Entry.Behaviors>
+                    <behaviors:UserIdValidationBehavior x:Name="UserIdValidation" />
+                </Entry.Behaviors>
+            </Entry>
+            <Label Style="{StaticResource FieldError}"
+                   Text="{Binding Source={x:Reference UserIdValidation}, Path=ErrorMessage}"
+                   IsVisible="{Binding Source={x:Reference UserIdValidation}, Path=HasError}" />
+
+            <Label Text="Email Address" Style="{StaticResource FieldLabel}" />
+            <Entry Text="{Binding Email}" Placeholder="user@example.com" Keyboard="Email">
+                <Entry.Behaviors>
+                    <behaviors:EmailValidationBehavior x:Name="EmailValidation" />
+                </Entry.Behaviors>
+            </Entry>
+            <Label Style="{StaticResource FieldError}"
+                   Text="{Binding Source={x:Reference EmailValidation}, Path=ErrorMessage}"
+                   IsVisible="{Binding Source={x:Reference EmailValidation}, Path=HasError}" />
+
+            <Label Text="IP Address" Style="{StaticResource FieldLabel}" />
+            <Entry Text="{Binding IpAddress}" Placeholder="192.168.1.10">
+                <Entry.Behaviors>
+                    <behaviors:IpAddressValidationBehavior x:Name="IpValidation" />
+                </Entry.Behaviors>
+            </Entry>
+            <Label Style="{StaticResource FieldError}"
+                   Text="{Binding Source={x:Reference IpValidation}, Path=ErrorMessage}"
+                   IsVisible="{Binding Source={x:Reference IpValidation}, Path=HasError}" />
+
+            <Label Text="Event Type" Style="{StaticResource FieldLabel}" />
+            <Entry Text="{Binding EventType}" Placeholder="Login">
+                <Entry.Behaviors>
+                    <behaviors:EventTypeValidationBehavior x:Name="EventTypeValidation" />
+                </Entry.Behaviors>
+            </Entry>
+            <Label Style="{StaticResource FieldError}"
+                   Text="{Binding Source={x:Reference EventTypeValidation}, Path=ErrorMessage}"
+                   IsVisible="{Binding Source={x:Reference EventTypeValidation}, Path=HasError}" />
+
+            <Button Text="Add event"
+                    Command="{Binding SubmitCommand}"
+                    Margin="0,20,0,0"
+                    HorizontalOptions="Start" />
+
+            <Label Text="All four fields must be valid before the event can be added."
+                   FontSize="12"
+                   TextColor="{AppThemeBinding Light=#666666, Dark=#AAAAAA}"
+                   Margin="0,6,0,0"
+                   IsVisible="{Binding IsFormComplete, Converter={x:Static conv:InverseBoolConverter.Instance}}" />
+
+            <Label Text="{Binding StatusMessage}"
+                   FontSize="12"
+                   Margin="0,12,0,0" />
+        </VerticalStackLayout>
+    </ScrollView>
+</ContentPage>

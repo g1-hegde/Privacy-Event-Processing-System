@@ -1,0 +1,9 @@
+<Solution>
+  <Project Path="PrivacyEventProcessing.Domain/PrivacyEventProcessing.Domain.csproj" />
+  <Project Path="PrivacyEventProcessing.Integration/PrivacyEventProcessing.Integration.csproj" />
+  <Project Path="PrivacyEventProcessing.MAUI/PrivacyEventProcessing.MAUI.csproj">
+    <Deploy Solution="Debug|*" />
+  </Project>
+  <Project Path="PrivacyEventProcessing.MockData/PrivacyEventProcessing.MockData.csproj" Id="c0b162ed-6e5e-48f1-a2ce-d69dd3cbb86a" />
+  <Project Path="PrivacyEventProcessing.Test/PrivacyEventProcessing.Test.csproj" />
+</Solution>
